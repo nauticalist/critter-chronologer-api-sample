@@ -1,0 +1,126 @@
+package com.udacity.jdnd.course3.critter.infrastructure.exception.handler;
+
+import com.udacity.jdnd.course3.critter.infrastructure.exception.model.ErrorModel;
+import com.udacity.jdnd.course3.critter.infrastructure.exception.model.ErrorResponse;
+import com.udacity.jdnd.course3.critter.infrastructure.utils.JsonUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageConversionException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.NoHandlerFoundException;
+
+import javax.validation.ConstraintViolation;
+import javax.validation.ConstraintViolationException;
+
+@ControllerAdvice
+public class ExceptionControllerAdvice {
+    private static final Logger log = LoggerFactory.getLogger(ExceptionControllerAdvice.class);
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    @ResponseStatus(value = HttpStatus.NOT_FOUND)
+    @ResponseBody
+    public ErrorResponse onNoHandlerFound(NoHandlerFoundException exception, WebRequest request) {
+        log.error(String.format("Handler %s not found", request.getDescription(false)));
+
+        ErrorResponse response = new ErrorResponse();
+        response.getErrors().add(
+                new ErrorModel(
+                        404,
+                        "Handler not found",
+                        String.format("Handler %s not found",request.getDescription(false))));
+
+        return response;
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    @ResponseStatus(value = HttpStatus.NOT_FOUND)
+    @ResponseBody
+    public ErrorResponse onResourceFound(ResourceNotFoundException exception, WebRequest request) {
+        log.error(String.format("No resource found exception occurred: %s ", exception.getMessage()));
+
+        ErrorResponse response = new ErrorResponse();
+        response.getErrors().add(
+                new ErrorModel(
+                        404,
+                        "Resource not found",
+                        exception.getMessage()));
+
+        return response;
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseBody
+    public ErrorResponse onMethodArgumentNotValidException(MethodArgumentNotValidException e) {
+
+        ErrorResponse error = new ErrorResponse();
+        for (FieldError fieldError : e.getBindingResult().getFieldErrors()) {
+            error.getErrors().add(
+                    new ErrorModel(
+                            400,
+                            fieldError.getField(),
+                            fieldError.getDefaultMessage()));
+        }
+        log.error(String.format("Validation exception occurred: %s", JsonUtil.convertObjectToJsonString(error)));
+        return error;
+    }
+
+    @ExceptionHandler(HttpMessageConversionException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseBody
+    public ErrorResponse onInvalidRequest(HttpMessageConversionException e) {
+        log.error("Invalid request received", e);
+
+        ErrorResponse error = new ErrorResponse();
+        error.getErrors().add(
+                new ErrorModel(
+                        400,
+                        "Invalid Request",
+                        "Invalid request body. Please verify the request and try again !!"
+                )
+        );
+
+        return error;
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseBody
+    public ErrorResponse onConstraintValidationException(ConstraintViolationException e) {
+        log.error("Constraint validation exception occurred", e);
+
+        ErrorResponse error = new ErrorResponse();
+        e.getConstraintViolations().forEach(violation -> error.getErrors().add(
+                new ErrorModel(
+                        400,
+                        violation.getPropertyPath().toString(),
+                        violation.getMessage())));
+        return error;
+    }
+
+
+    @ExceptionHandler(RuntimeException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    @ResponseBody
+    public ErrorResponse onRuntimeException(RuntimeException e) {
+
+        log.error("Error occurred while handling request", e);
+
+        ErrorResponse error = new ErrorResponse();
+        error.getErrors().add(
+                new ErrorModel(
+                        500,
+                        "Internal Server Error",
+                        "Error occurred while processing your request. Please try again !!"
+                )
+        );
+        return error;
+    }
+}
